@@ -1,0 +1,92 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { CustomerRepositoryPort } from '../../application/ports/customer.repository.port';
+import { Customer } from '../../domain/entities/customer.entitiy';
+import { CustomerId } from '../../domain/value-objects/customer-id.vo';
+import { Email } from '../../domain/value-objects/email.vo';
+import { DRIZZLE } from '../../../shared/infrastructure/database/postgres/drizzle.provider';
+import type { DrizzleDB } from '../../../shared/infrastructure/database/postgres/drizzle.provider';
+import { customers } from '../../../shared/infrastructure/database/postgres/schema';
+import { eq } from 'drizzle-orm';
+
+type CustomerRow = typeof customers.$inferSelect;
+
+@Injectable()
+export class DrizzleCustomerRepository implements CustomerRepositoryPort {
+  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+
+  async save(customer: Customer): Promise<void> {
+    const row = DrizzleCustomerRepository.toPersistence(customer);
+
+    await this.db
+      .insert(customers)
+      .values(row)
+      .onConflictDoUpdate({
+        target: customers.id,
+        set: {
+          email: row.email,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          phone: row.phone,
+          isActive: row.isActive,
+          updatedAt: row.updatedAt,
+        },
+      });
+  }
+
+  async findById(id: CustomerId): Promise<Customer | null> {
+    const rows = await this.db
+      .select()
+      .from(customers)
+      .where(eq(customers.id, id.getValue()));
+    if (rows.length === 0) return null;
+
+    return DrizzleCustomerRepository.toDomain(rows[0]);
+  }
+
+  async findByEmail(email: Email): Promise<Customer | null> {
+    const rows = await this.db
+      .select()
+      .from(customers)
+      .where(eq(customers.email, email.getValue()));
+    if (rows.length === 0) return null;
+
+    return DrizzleCustomerRepository.toDomain(rows[0]);
+  }
+
+  async findAll(): Promise<Customer[]> {
+    const rows = await this.db.select().from(customers);
+    return rows.map((row) => DrizzleCustomerRepository.toDomain(row));
+  }
+
+  async delete(id: CustomerId): Promise<void> {
+    await this.db.delete(customers).where(eq(customers.id, id.getValue()));
+  }
+
+  private static toPersistence(
+    customer: Customer,
+  ): typeof customers.$inferSelect {
+    return {
+      id: customer.id.getValue(),
+      email: customer.email.getValue(),
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      phone: customer.phone,
+      isActive: customer.isActive,
+      createdAt: customer.createdAt,
+      updatedAt: customer.updatedAt,
+    };
+  }
+
+  private static toDomain(row: CustomerRow): Customer {
+    return Customer.reconstitute({
+      id: new CustomerId(row.id),
+      email: Email.create(row.email),
+      firstName: row.firstName,
+      lastName: row.lastName,
+      phone: row.phone,
+      isActive: row.isActive,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+  }
+}
