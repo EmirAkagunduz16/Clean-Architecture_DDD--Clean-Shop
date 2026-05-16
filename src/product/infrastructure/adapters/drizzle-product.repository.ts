@@ -47,6 +47,26 @@ export class DrizzleProductRepository implements ProductRepository {
     return DrizzleProductRepository.toDomain(rows[0]);
   }
 
+  async findBySku(sku: Sku): Promise<Product | null> {
+    const rows = await this.db
+      .select()
+      .from(products)
+      .where(eq(products.sku, sku.getValue()));
+    if (rows.length === 0) return null;
+
+    return DrizzleProductRepository.toDomain(rows[0]);
+  }
+
+  async findByName(name: string): Promise<Product | null> {
+    const rows = await this.db
+      .select()
+      .from(products)
+      .where(eq(products.name, name));
+    if (rows.length === 0) return null;
+
+    return DrizzleProductRepository.toDomain(rows[0]);
+  }
+
   async findAll(filters: ProductFilters): Promise<Product[]> {
     const conditions: SQL[] = [];
 
@@ -74,6 +94,10 @@ export class DrizzleProductRepository implements ProductRepository {
         : await query;
 
     return productRows.map((row) => DrizzleProductRepository.toDomain(row));
+  }
+
+  async delete(id: ProductId): Promise<void> {
+    await this.db.delete(products).where(eq(products.id, id.getValue()));
   }
 
   private static toPersistence(product: Product): typeof products.$inferSelect {

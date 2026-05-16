@@ -6,7 +6,10 @@ import type { ProductRepository } from '../../ports/product.repository.port';
 import { Product } from '../../../domain/entities/product.entity';
 
 @QueryHandler(ListProductsQuery)
-export class ListProductsHandler implements IQueryHandler<ListProductsQuery> {
+export class ListProductsHandler implements IQueryHandler<
+  ListProductsQuery,
+  Product[]
+> {
   constructor(
     @Inject(PRODUCT_REPOSITORY)
     private readonly productRepository: ProductRepository,
